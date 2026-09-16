@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from app.constants.devices_map import resolve_device_name
 from app.constants.webhooks.events import SERIES_TYPE_TO_GRANULAR_EVENT, SERIES_TYPE_TO_GROUP_EVENT
 from app.schemas.webhooks.event_types import WebhookEventType
 from app.services.outgoing_webhooks import svix as svix_service
+from app.utils.structured_logging import log_structured
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,11 @@ SVIX_MAX_SAMPLES_PER_EVENT = 2500
 # Svix eventId must match [a-zA-Z0-9\-_.] — colons, plus-signs, and other
 # characters in ISO 8601 timestamps are not allowed.
 _SVIX_ID_SAFE = re.compile(r"[^a-zA-Z0-9\-_.]")
+
+# Batches not emitted because their series type has no webhook event, per series
+# type, since the process started. Each is data the platform stored that no webhook
+# consumer will ever receive, so it is counted and logged rather than dropped quietly.
+UNEMITTED_SERIES_BATCHES: Counter[str] = Counter()
 
 
 def _safe_key(raw: str) -> str:
@@ -217,6 +224,17 @@ def on_timeseries_batch_saved(
     """
     group_event = SERIES_TYPE_TO_GROUP_EVENT.get(series_type)
     if group_event is None:
+        UNEMITTED_SERIES_BATCHES[series_type] += 1
+        log_structured(
+            logger,
+            "warning",
+            "Series type has no webhook event; batch not emitted",
+            provider=provider,
+            action="webhook_series_not_emitted",
+            series_type=series_type,
+            sample_count=sample_count,
+            skipped_batches=UNEMITTED_SERIES_BATCHES[series_type],
+        )
         return
     granular_event = SERIES_TYPE_TO_GRANULAR_EVENT.get(series_type)
     if granular_event and granular_event != group_event:
