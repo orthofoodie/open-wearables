@@ -21,22 +21,34 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-from app.config import settings
+from app.config import Settings, settings
 from app.schemas.auth import ConnectionStatus, LiveSyncMode, TokenType
 from app.schemas.enums import AggregationMethod, DataGranularity, HealthScoreCategory, ProviderName
 from app.schemas.model_crud.user_management import InvitationStatus
 from app.schemas.sync_status import SyncScope, SyncSource, SyncStatus
 from app.utils.mappings_meta import AutoRelMeta
 
-engine = create_engine(
-    settings.db_uri,
-    pool_pre_ping=True,
-    pool_size=20,
-    max_overflow=30,
-    pool_timeout=30,
-    pool_recycle=3600,
-)
-async_engine = create_async_engine(settings.db_uri)
+
+def build_engine(config: Settings) -> Engine:
+    """The sync engine for `config`: its schema on every connection, its pool size."""
+    return create_engine(
+        config.db_uri,
+        connect_args=config.db_connect_args,
+        pool_pre_ping=True,
+        pool_size=config.db_pool_size,
+        max_overflow=config.db_max_overflow,
+        pool_timeout=30,
+        pool_recycle=3600,
+    )
+
+
+def build_async_engine(config: Settings) -> AsyncEngine:
+    """The async engine for `config`, on the same schema."""
+    return create_async_engine(config.db_uri, connect_args=config.db_connect_args)
+
+
+engine = build_engine(settings)
+async_engine = build_async_engine(settings)
 
 
 def _prepare_sessionmaker(engine: Engine) -> sessionmaker:

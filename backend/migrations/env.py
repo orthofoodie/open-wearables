@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import Connection, engine_from_config, pool, text
 
 from app.config import settings
 from app.database import BaseDbModel
@@ -13,6 +13,27 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = BaseDbModel.metadata
+
+# `None` keeps alembic's default - an unqualified `alembic_version` - so a
+# `public` install migrates exactly as upstream does. Otherwise the version table
+# lives in the schema too, and never in whatever `public` holds.
+SCHEMA = settings.db_schema
+VERSION_TABLE_SCHEMA = None if SCHEMA == "public" else SCHEMA
+
+
+def ensure_schema(connection: Connection) -> None:
+    """Create the schema if it is missing, and only then.
+
+    `CREATE SCHEMA IF NOT EXISTS` checks CREATE on the database before it checks
+    whether the schema exists, so a role that owns a pre-created schema - and is
+    allowed to create nothing else - would fail it on every run.
+    """
+    if VERSION_TABLE_SCHEMA is None:
+        return
+    exists = connection.execute(text("SELECT 1 FROM pg_namespace WHERE nspname = :s"), {"s": SCHEMA}).scalar()
+    if not exists:
+        connection.execute(text(f'CREATE SCHEMA "{SCHEMA}"'))
+    connection.commit()
 
 
 def run_migrations_offline() -> None:
@@ -33,9 +54,13 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_schema=VERSION_TABLE_SCHEMA,
     )
 
     with context.begin_transaction():
+        if VERSION_TABLE_SCHEMA is not None:
+            context.execute(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"')
+            context.execute(f'SET search_path TO "{SCHEMA}"')
         context.run_migrations()
 
 
@@ -50,12 +75,15 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=settings.db_connect_args,
     )
 
     with connectable.connect() as connection:
+        ensure_schema(connection)
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            version_table_schema=VERSION_TABLE_SCHEMA,
         )
 
         with context.begin_transaction():
