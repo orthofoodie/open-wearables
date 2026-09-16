@@ -1,3 +1,4 @@
+from app.config import settings
 from app.services.providers.base_strategy import BaseProviderStrategy, ProviderCapabilities, ProviderCoverage
 from app.services.providers.withings.coverage import HEALTH_SCORES, SLEEP_FIELDS, TIMESERIES, WORKOUT_FIELDS
 from app.services.providers.withings.data_247 import Withings247Data
@@ -48,7 +49,7 @@ class WithingsStrategy(BaseProviderStrategy):
 
     @property
     def api_base_url(self) -> str:
-        return "https://wbsapi.withings.net"
+        return settings.withings_api_base_url
 
     @property
     def capabilities(self) -> ProviderCapabilities:

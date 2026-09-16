@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
+from app.config import settings
 from app.database import DbSession
 from app.repositories.user_connection_repository import UserConnectionRepository
 from app.schemas.providers.withings import WithingsMeasure
@@ -22,8 +23,6 @@ from app.services.providers.templates.base_oauth import BaseOAuthTemplate
 from app.utils.structured_logging import log_structured
 
 logger = logging.getLogger(__name__)
-
-WITHINGS_API_BASE_URL = "https://wbsapi.withings.net"
 
 # Withings' throttle signal, reported in the envelope rather than the HTTP status.
 _RATE_LIMIT_STATUS = 601
@@ -73,7 +72,7 @@ def withings_request(
     service_path: str,
     action: str,
     params: dict[str, Any],
-    api_base_url: str = WITHINGS_API_BASE_URL,
+    api_base_url: str | None = None,
 ) -> dict[str, Any]:
     """POST an action to a Withings service and return the unwrapped ``body``.
 
@@ -86,7 +85,8 @@ def withings_request(
         user_id=user_id,
         connection_repo=connection_repo,
         oauth=oauth,
-        api_base_url=api_base_url,
+        # Read at call time, not bound at import: the base URL is a setting.
+        api_base_url=api_base_url or settings.withings_api_base_url,
         provider_name="withings",
         endpoint=service_path,
         method="POST",
@@ -126,7 +126,7 @@ def paginate(
     action: str,
     params: dict[str, Any],
     list_key: str,
-    api_base_url: str = WITHINGS_API_BASE_URL,
+    api_base_url: str | None = None,
 ) -> PaginatedResult:
     """Follow Withings ``more``/``offset`` pagination, collecting ``body[list_key]``."""
     collected: list[dict[str, Any]] = []

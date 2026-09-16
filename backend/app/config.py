@@ -237,6 +237,13 @@ class Settings(BaseSettings):
     withings_client_secret: SecretStr | None = None
     withings_webhook_token: SecretStr | None = None
     withings_default_scope: str = "user.info,user.metrics,user.activity"
+    # Where the Withings data API and its OAuth token endpoint live. The defaults
+    # are the production hosts, so an unset environment behaves exactly as before;
+    # a test rig points them at a stub. Two settings rather than one because the
+    # token endpoint carries the client secret, and redirecting data calls must
+    # never silently redirect credentials with them.
+    withings_api_base_url: str = "https://wbsapi.withings.net"
+    withings_oauth_base_url: str = "https://wbsapi.withings.net"
 
     # EMAIL SETTINGS (Resend)
     resend_api_key: SecretStr | None = None

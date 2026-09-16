@@ -72,7 +72,7 @@ class WithingsOAuth(BaseOAuthTemplate):
     def endpoints(self) -> ProviderEndpoints:
         return ProviderEndpoints(
             authorize_url="https://account.withings.com/oauth2_user/authorize2",
-            token_url="https://wbsapi.withings.net/v2/oauth2",
+            token_url=f"{settings.withings_oauth_base_url}/v2/oauth2",
         )
 
     @property
