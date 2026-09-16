@@ -19,6 +19,11 @@ def create_svix_db() -> None:
     if not settings.outgoing_webhooks_enabled:
         logger.info("Outgoing webhooks disabled — skipping svix database creation.")
         return
+    if settings.db_schema != "public":
+        # A shared database is not ours to create databases in: svix's is
+        # provisioned by the operator, with its own role.
+        logger.info("DB_SCHEMA=%s — skipping svix database creation.", settings.db_schema)
+        return
     dsn = (
         f"host={settings.db_host} "
         f"port={settings.db_port} "
