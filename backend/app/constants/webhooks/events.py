@@ -4,7 +4,9 @@ Each series type is mapped to:
 - a GROUP event  (``SERIES_TYPE_TO_GROUP_EVENT``)   — fires for any sample in that category
 - a GRANULAR event (``SERIES_TYPE_TO_GRANULAR_EVENT``) — fires for this specific metric only
 
-Both events are emitted for every ingestion batch.  Series types not listed here are silently skipped.
+Both events are emitted for every ingestion batch.  A series type not listed here is not emitted at all:
+``on_timeseries_batch_saved`` logs and counts every batch it skips, so a stored series that no
+webhook consumer will receive is visible rather than silent.
 """
 
 from app.schemas.webhooks.event_types import WebhookEventType
@@ -45,6 +47,8 @@ SERIES_TYPE_TO_GROUP_EVENT: dict[str, str] = {
     "body_fat_mass": WebhookEventType.BODY_COMPOSITION_CREATED,
     "skeletal_muscle_mass": WebhookEventType.BODY_COMPOSITION_CREATED,
     "waist_circumference": WebhookEventType.BODY_COMPOSITION_CREATED,
+    "bone_mass": WebhookEventType.BODY_COMPOSITION_CREATED,
+    "body_water_mass": WebhookEventType.BODY_COMPOSITION_CREATED,
     # Body Temperature
     "body_temperature": WebhookEventType.BODY_TEMPERATURE_CREATED,
     "skin_temperature": WebhookEventType.BODY_TEMPERATURE_CREATED,
@@ -59,6 +63,11 @@ SERIES_TYPE_TO_GROUP_EVENT: dict[str, str] = {
     "six_minute_walk_test_distance": WebhookEventType.FITNESS_METRICS_CREATED,
     "cardiovascular_age": WebhookEventType.FITNESS_METRICS_CREATED,
     "garmin_fitness_age": WebhookEventType.FITNESS_METRICS_CREATED,
+    # Withings: pulse wave velocity is the arterial-stiffness reading its vascular
+    # (cardiovascular) age is derived from, and metabolic age is another age estimate -
+    # both sit with cardiovascular_age and garmin_fitness_age, not with heart rate.
+    "withings_pulse_wave_velocity": WebhookEventType.FITNESS_METRICS_CREATED,
+    "withings_metabolic_age": WebhookEventType.FITNESS_METRICS_CREATED,
     # Activity Basic
     "steps": WebhookEventType.STEPS_CREATED,
     "energy": WebhookEventType.CALORIES_CREATED,
@@ -148,6 +157,8 @@ SERIES_TYPE_TO_GRANULAR_EVENT: dict[str, str] = {
     "body_fat_mass": WebhookEventType.SERIES_BODY_FAT_MASS,
     "skeletal_muscle_mass": WebhookEventType.SERIES_SKELETAL_MUSCLE_MASS,
     "waist_circumference": WebhookEventType.SERIES_WAIST_CIRCUMFERENCE,
+    "bone_mass": WebhookEventType.SERIES_BONE_MASS,
+    "body_water_mass": WebhookEventType.SERIES_BODY_WATER_MASS,
     "body_temperature": WebhookEventType.SERIES_BODY_TEMPERATURE,
     "skin_temperature": WebhookEventType.SERIES_SKIN_TEMPERATURE,
     "skin_temperature_deviation": WebhookEventType.SERIES_SKIN_TEMPERATURE_DEVIATION,
@@ -159,6 +170,8 @@ SERIES_TYPE_TO_GRANULAR_EVENT: dict[str, str] = {
     "six_minute_walk_test_distance": WebhookEventType.SERIES_SIX_MINUTE_WALK_TEST_DISTANCE,
     "cardiovascular_age": WebhookEventType.SERIES_CARDIOVASCULAR_AGE,
     "garmin_fitness_age": WebhookEventType.SERIES_GARMIN_FITNESS_AGE,
+    "withings_pulse_wave_velocity": WebhookEventType.SERIES_WITHINGS_PULSE_WAVE_VELOCITY,
+    "withings_metabolic_age": WebhookEventType.SERIES_WITHINGS_METABOLIC_AGE,
     "steps": WebhookEventType.SERIES_STEPS,
     "energy": WebhookEventType.SERIES_ENERGY,
     "basal_energy": WebhookEventType.SERIES_BASAL_ENERGY,

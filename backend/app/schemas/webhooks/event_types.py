@@ -112,6 +112,8 @@ class WebhookEventType(StrEnum):
     SERIES_BODY_FAT_MASS = "series.body_fat_mass.created"
     SERIES_SKELETAL_MUSCLE_MASS = "series.skeletal_muscle_mass.created"
     SERIES_WAIST_CIRCUMFERENCE = "series.waist_circumference.created"
+    SERIES_BONE_MASS = "series.bone_mass.created"
+    SERIES_BODY_WATER_MASS = "series.body_water_mass.created"
 
     # Body temperature
     SERIES_BODY_TEMPERATURE = "series.body_temperature.created"
@@ -129,6 +131,8 @@ class WebhookEventType(StrEnum):
     SERIES_SIX_MINUTE_WALK_TEST_DISTANCE = "series.six_minute_walk_test_distance.created"
     SERIES_CARDIOVASCULAR_AGE = "series.cardiovascular_age.created"
     SERIES_GARMIN_FITNESS_AGE = "series.garmin_fitness_age.created"
+    SERIES_WITHINGS_PULSE_WAVE_VELOCITY = "series.withings_pulse_wave_velocity.created"
+    SERIES_WITHINGS_METABOLIC_AGE = "series.withings_metabolic_age.created"
 
     # Steps & calories
     SERIES_STEPS = "series.steps.created"
@@ -258,6 +262,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[WebhookEventType, str] = {
     WebhookEventType.SERIES_BODY_FAT_MASS: "Body fat mass samples were ingested.",
     WebhookEventType.SERIES_SKELETAL_MUSCLE_MASS: "Skeletal muscle mass samples were ingested.",
     WebhookEventType.SERIES_WAIST_CIRCUMFERENCE: "Waist circumference samples were ingested.",
+    WebhookEventType.SERIES_BONE_MASS: "Bone mass samples were ingested.",
+    WebhookEventType.SERIES_BODY_WATER_MASS: "Body water mass samples were ingested.",
     WebhookEventType.SERIES_BODY_TEMPERATURE: "Core body temperature samples were ingested.",
     WebhookEventType.SERIES_SKIN_TEMPERATURE: "Skin temperature samples were ingested.",
     WebhookEventType.SERIES_SKIN_TEMPERATURE_DEVIATION: "Skin temperature deviation samples were ingested.",
@@ -271,6 +277,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[WebhookEventType, str] = {
     WebhookEventType.SERIES_SIX_MINUTE_WALK_TEST_DISTANCE: "6-minute walk test distance samples were ingested.",
     WebhookEventType.SERIES_CARDIOVASCULAR_AGE: "Cardiovascular age samples were ingested.",
     WebhookEventType.SERIES_GARMIN_FITNESS_AGE: "Garmin fitness age estimates were ingested.",
+    WebhookEventType.SERIES_WITHINGS_PULSE_WAVE_VELOCITY: "Withings pulse wave velocity samples were ingested.",
+    WebhookEventType.SERIES_WITHINGS_METABOLIC_AGE: "Withings metabolic age estimates were ingested.",
     WebhookEventType.SERIES_STEPS: "Step count samples were ingested.",
     WebhookEventType.SERIES_ENERGY: "Active energy (calories) samples were ingested.",
     WebhookEventType.SERIES_BASAL_ENERGY: "Basal energy samples were ingested.",
@@ -369,6 +377,8 @@ EVENT_TYPE_GROUPS: dict[str, list[str]] = {
         WebhookEventType.SERIES_BODY_FAT_MASS,
         WebhookEventType.SERIES_SKELETAL_MUSCLE_MASS,
         WebhookEventType.SERIES_WAIST_CIRCUMFERENCE,
+        WebhookEventType.SERIES_BONE_MASS,
+        WebhookEventType.SERIES_BODY_WATER_MASS,
     ],
     WebhookEventType.BODY_TEMPERATURE_CREATED: [
         WebhookEventType.SERIES_BODY_TEMPERATURE,
@@ -386,6 +396,8 @@ EVENT_TYPE_GROUPS: dict[str, list[str]] = {
         WebhookEventType.SERIES_SIX_MINUTE_WALK_TEST_DISTANCE,
         WebhookEventType.SERIES_CARDIOVASCULAR_AGE,
         WebhookEventType.SERIES_GARMIN_FITNESS_AGE,
+        WebhookEventType.SERIES_WITHINGS_PULSE_WAVE_VELOCITY,
+        WebhookEventType.SERIES_WITHINGS_METABOLIC_AGE,
     ],
     WebhookEventType.STEPS_CREATED: [
         WebhookEventType.SERIES_STEPS,

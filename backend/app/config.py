@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import warnings
 from datetime import timedelta
 from functools import lru_cache
@@ -58,6 +59,15 @@ class Settings(BaseSettings):
     db_name: str = "open-wearables"
     db_user: str = "open-wearables"
     db_password: SecretStr = SecretStr("open-wearables")
+    # The schema Open Wearables' tables live in. `public` is upstream's behaviour,
+    # unchanged. Any other value runs every connection with that search_path and
+    # keeps alembic's version table there, so Open Wearables can live inside a
+    # database it does not own - with a role that owns this schema and holds
+    # nothing else (docs/deployment/shared-database.mdx).
+    db_schema: str = "public"
+    # Per process: the API, each Celery worker, beat and flower each hold a pool.
+    db_pool_size: int = Field(default=20, ge=1)
+    db_max_overflow: int = Field(default=30, ge=0)
 
     # Sentry
     SENTRY_ENABLED: bool = False
@@ -237,6 +247,13 @@ class Settings(BaseSettings):
     withings_client_secret: SecretStr | None = None
     withings_webhook_token: SecretStr | None = None
     withings_default_scope: str = "user.info,user.metrics,user.activity"
+    # Where the Withings data API and its OAuth token endpoint live. The defaults
+    # are the production hosts, so an unset environment behaves exactly as before;
+    # a test rig points them at a stub. Two settings rather than one because the
+    # token endpoint carries the client secret, and redirecting data calls must
+    # never silently redirect credentials with them.
+    withings_api_base_url: str = "https://wbsapi.withings.net"
+    withings_oauth_base_url: str = "https://wbsapi.withings.net"
 
     # EMAIL SETTINGS (Resend)
     resend_api_key: SecretStr | None = None
@@ -422,6 +439,22 @@ class Settings(BaseSettings):
         if isinstance(v, EncryptedField):
             return v.get_decrypted_value(validation_info.data["fernet_decryptor"])
         return v
+
+    @field_validator("db_schema", mode="after")
+    @classmethod
+    def _db_schema_is_an_identifier(cls, v: str) -> str:
+        # It is interpolated into a libpq option and a CREATE SCHEMA, so only a
+        # plain lowercase identifier is accepted.
+        if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", v):
+            raise ValueError("DB_SCHEMA must be a lowercase PostgreSQL identifier")
+        return v
+
+    @property
+    def db_connect_args(self) -> dict[str, str]:
+        """libpq options for every connection: the schema, unless it is `public`."""
+        if self.db_schema == "public":
+            return {}
+        return {"options": f"-c search_path={self.db_schema}"}
 
     @property
     def db_uri(self) -> str:
