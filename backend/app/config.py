@@ -458,11 +458,11 @@ class Settings(BaseSettings):
 
     @property
     def db_uri(self) -> str:
-        return (
-            f"postgresql+psycopg://"
-            f"{self.db_user}:{self.db_password.get_secret_value()}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
-        )
+        # The user and password are percent-encoded: a secret may hold `@ / : % #`,
+        # each of which ends or bends a URL. A value with none of them is unchanged.
+        user = quote(self.db_user, safe="")
+        password = quote(self.db_password.get_secret_value(), safe="")
+        return f"postgresql+psycopg://{user}:{password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # 0. pytest ini_options
     # 1. environment variables

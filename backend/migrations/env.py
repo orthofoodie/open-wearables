@@ -7,7 +7,9 @@ from app.config import settings
 from app.database import BaseDbModel
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.db_uri)
+# alembic's config is a ConfigParser, where `%` is interpolation, and the URL's
+# percent-encoded password carries `%`s: doubled here, read back single.
+config.set_main_option("sqlalchemy.url", settings.db_uri.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

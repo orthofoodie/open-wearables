@@ -52,7 +52,10 @@ def schema_role(_postgres_url: str) -> Generator[SchemaRole, None, None]:
     # with "$user", which would find a same-named schema by itself and hide a
     # missing DB_SCHEMA.
     suffix = uuid.uuid4().hex[:8]
-    found = SchemaRole(f"ow_mig_{suffix}", secrets.token_urlsafe(24), f"ow_data_{suffix}")
+    # The password carries `@ / % #`: every migration below then proves that the
+    # URL built from it (Settings.db_uri, then alembic's config) still reaches the
+    # server with the password as written.
+    found = SchemaRole(f"ow_mig_{suffix}", secrets.token_urlsafe(24) + "@/%#", f"ow_data_{suffix}")
     admin = create_engine(_postgres_url, isolation_level="AUTOCOMMIT")
     with admin.connect() as conn:
         conn.execute(
