@@ -35,9 +35,10 @@ def test_an_existing_env_file_is_refused(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="refusing to run the test suite") as refused:
         refuse_real_env_file(env_file)
 
-    # It says where to run instead: a clone, which writes nothing into this checkout.
+    # It recommends a clone, which writes nothing into this checkout, and no longer
+    # the worktree 2825437 recommended. Naming a worktree to explain that is fine.
     assert "fresh clone (git clone" in str(refused.value)
-    assert "worktree" not in str(refused.value)
+    assert "git worktree add" not in str(refused.value)
 
 
 def test_an_absent_env_file_is_fine(tmp_path: Path) -> None:
