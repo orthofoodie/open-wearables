@@ -32,8 +32,12 @@ def test_an_existing_env_file_is_refused(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(FAKE)
 
-    with pytest.raises(RuntimeError, match="refusing to run the test suite"):
+    with pytest.raises(RuntimeError, match="refusing to run the test suite") as refused:
         refuse_real_env_file(env_file)
+
+    # It says where to run instead: a clone, which writes nothing into this checkout.
+    assert "fresh clone (git clone" in str(refused.value)
+    assert "worktree" not in str(refused.value)
 
 
 def test_an_absent_env_file_is_fine(tmp_path: Path) -> None:

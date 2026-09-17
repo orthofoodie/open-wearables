@@ -8,8 +8,9 @@ suite would load that deployment's passwords and client secrets into it.
 
 The suite takes its settings from the environment block at the top of
 `tests/conftest.py`, and never needs the file. So the rule is absence. Run the
-suite from a clean checkout (a `git worktree add` of this repository carries no
-`config/.env`, which git ignores) or in CI.
+suite from a fresh clone of this repository (git ignores `config/.env`) or in
+CI. A clone writes nothing into this checkout. `git worktree add` would write
+into its `.git`, which another user of a shared checkout also relies on.
 
 Both checks run from `tests/__init__.py`. Python runs a package's `__init__`
 before any module in it, conftest included, so they run before the first `app`
@@ -32,8 +33,9 @@ def refuse_real_env_file(path: Path = REAL_ENV_FILE) -> None:
             f"refusing to run the test suite: {path} exists. Importing app.config "
             "builds Settings() with that file as its env_file, which would load a "
             "deployment's real secrets into the test process. Run the suite from a "
-            "clean checkout (git worktree add <dir>; git ignores config/.env) or in "
-            "CI; it takes its settings from tests/conftest.py."
+            "fresh clone (git clone; git ignores config/.env, and a clone writes "
+            "nothing into this checkout) or in CI; it takes its settings from "
+            "tests/conftest.py."
         )
 
 
