@@ -6,8 +6,11 @@ sets `hide_input_in_errors`. The commonest boot failure, a deployment missing
 `SECRET_KEY`, then writes `db_password`, `admin_password` and every provider
 client secret to the container log.
 
-These tests never read a real `config/.env`: every settings object here is
-built with `_env_file=None`, and the secret is a canary set for the test alone.
+The two settings objects this module builds pass `_env_file=None`, and the
+secret is a canary set for the test alone. Importing `app.config` builds a
+third, at module level, with the default env_file. So this module is hermetic
+only because the suite refuses to run while `config/.env` exists
+(`tests/_real_env_guard.py`), not because of anything it does itself.
 """
 
 import pytest

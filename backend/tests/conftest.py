@@ -5,9 +5,22 @@ Following patterns from know-how-tests.md:
 - PostgreSQL test database with transaction rollback (via testcontainers or external DB)
 - Auto-use fixtures for global mocking
 - Factory pattern for test data
+
+Settings come from the environment block below, which runs before the first
+`app` import. `app.config` builds Settings() once, at import, from the
+environment and from config/.env, and the session keeps that object. So the
+suite refuses to run while config/.env exists, or if any `app` module was
+imported before `tests/__init__.py` checked (`tests/_real_env_guard.py`).
+Run it from a clean checkout or in CI.
 """
 
 import os
+
+# Set test environment before importing app modules
+os.environ["ENV"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["MASTER_KEY"] = "dGVzdC1tYXN0ZXIta2V5LWZvci10ZXN0aW5nLW9ubHk="  # base64 test key
+
 import sys
 from collections.abc import Generator
 from typing import Any
@@ -29,11 +42,6 @@ from app.main import api
 from app.models import SeriesTypeDefinition
 from app.schemas.enums import SERIES_TYPE_DEFINITIONS
 from tests import factories
-
-# Set test environment before importing app modules
-os.environ["ENV"] = "test"
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
-os.environ["MASTER_KEY"] = "dGVzdC1tYXN0ZXIta2V5LWZvci10ZXN0aW5nLW9ubHk="  # base64 test key
 
 
 @pytest.fixture(scope="session")
