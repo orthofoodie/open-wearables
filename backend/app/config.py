@@ -31,6 +31,11 @@ class Settings(BaseSettings):
         extra="ignore",
         # default env_file solution search .env every time BaseSettings is instantiated
         # dotenv search .env when module is imported, without usecwd it starts from the file it was called
+        # A validation error must not print the settings. Without this, pydantic puts
+        # every value it read from the environment and config/.env into the error's
+        # input_value: a boot missing SECRET_KEY would write db_password,
+        # admin_password and every provider client secret to the container log.
+        hide_input_in_errors=True,
     )
 
     # CORE SETTINGS
