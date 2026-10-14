@@ -19,15 +19,22 @@ def create_svix_db() -> None:
     if not settings.outgoing_webhooks_enabled:
         logger.info("Outgoing webhooks disabled — skipping svix database creation.")
         return
-    dsn = (
-        f"host={settings.db_host} "
-        f"port={settings.db_port} "
-        f"dbname={settings.db_name} "
-        f"user={settings.db_user} "
-        f"password={settings.db_password.get_secret_value()}"
-    )
+    if settings.db_schema != "public":
+        # A shared database is not ours to create databases in: svix's is
+        # provisioned by the operator, with its own role.
+        logger.info("DB_SCHEMA=%s — skipping svix database creation.", settings.db_schema)
+        return
     try:
-        with psycopg.connect(dsn, autocommit=True) as conn:
+        # Keywords, not a conninfo string: psycopg quotes each value, so a password
+        # holding spaces or quotes reaches the server as written.
+        with psycopg.connect(
+            host=settings.db_host,
+            port=settings.db_port,
+            dbname=settings.db_name,
+            user=settings.db_user,
+            password=settings.db_password.get_secret_value(),
+            autocommit=True,
+        ) as conn:
             try:
                 conn.execute("CREATE DATABASE svix")
                 logger.info("Created 'svix' database.")
