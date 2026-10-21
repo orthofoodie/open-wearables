@@ -1,4 +1,4 @@
-"""Activity-family metrics (steps, distance, calories, hydration).
+"""Activity-family metrics (steps, distance, calories).
 
 Value fields confirmed against the live API. Distance is reported in millimeters
 (scaled to meters). total-calories mixes active with basal and has no list form, so it is
@@ -32,12 +32,5 @@ ACTIVITY_METRICS: tuple[DataTypeMetric, ...] = (
         SeriesType.energy,
         value_key="activeEnergyBurned",
         list_spec=ListSpec("kcal", TimeShape.INTERVAL),
-    ),
-    DataTypeMetric(
-        "hydration-log",
-        SeriesType.hydration,
-        value_key="hydrationLog",
-        rollup_spec=RollupSpec("amountConsumed", subfield="millilitersSum"),
-        list_spec=ListSpec("amountConsumed", TimeShape.INTERVAL, subfield="milliliters", session_interval=True),
     ),
 )
