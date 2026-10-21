@@ -50,3 +50,56 @@ class TestGoogleAuthorizationRequest:
 
         assert params["access_type"] == ["offline"]
         assert params["prompt"] == ["consent"]
+
+
+GOOGLEHEALTH = "https://www.googleapis.com/auth/googlehealth"
+
+
+class TestGoogleScopesMatchWhatIsRead:
+    """Ask Google only for what is ingested (Security, open-wearables#2).
+
+    No nutrition scope: nothing downstream has a nutrition or hydration series,
+    and hydration-log / nutrition-log both need it. No email: nothing reads the
+    address, and openid already gives the stable subject.
+    """
+
+    def test_scope_is_openid_and_the_four_read_families(self, db: Session) -> None:
+        assert set(settings.google_default_scope.split()) == {
+            "openid",
+            f"{GOOGLEHEALTH}.activity_and_fitness.readonly",
+            f"{GOOGLEHEALTH}.health_metrics_and_measurements.readonly",
+            f"{GOOGLEHEALTH}.sleep.readonly",
+            f"{GOOGLEHEALTH}.settings.readonly",
+        }
+
+    def test_nothing_fetches_or_subscribes_to_nutrition_data(self, db: Session) -> None:
+        from app.services.providers.google_health.metrics import METRICS
+        from app.services.providers.google_health.webhook_service import GOOGLE_WEBHOOK_DATA_TYPES
+
+        needs_nutrition_scope = {"hydration-log", "nutrition-log"}
+        assert needs_nutrition_scope.isdisjoint(m.data_type for m in METRICS)
+        assert needs_nutrition_scope.isdisjoint(GOOGLE_WEBHOOK_DATA_TYPES)
+
+    def test_connect_resolves_only_the_health_user_id(self, db: Session) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from app.models import User
+        from app.repositories.user_connection_repository import UserConnectionRepository
+        from app.repositories.user_repository import UserRepository
+        from app.schemas.model_crud.credentials import OAuthTokenResponse
+
+        oauth = GoogleOAuth(
+            user_repo=UserRepository(User),
+            connection_repo=UserConnectionRepository(),
+            provider_name="google",
+            api_base_url="https://health.googleapis.com",
+        )
+        answer = MagicMock()
+        answer.json.return_value = {"healthUserId": "health-user-1"}
+        with patch("app.services.providers.google_health.oauth.httpx.get", return_value=answer) as get:
+            info = oauth._get_provider_user_info(
+                OAuthTokenResponse(access_token="token", token_type="Bearer", expires_in=3600), "user-1"
+            )
+
+        assert info == {"user_id": "health-user-1", "username": None}
+        assert [call.args[0] for call in get.call_args_list] == ["https://health.googleapis.com/v4/users/me/identity"]
