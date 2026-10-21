@@ -228,11 +228,12 @@ class Settings(BaseSettings):
     # GOOGLE OAUTH SETTINGS
     google_client_id: str | None = None
     google_client_secret: SecretStr | None = None
+    # Only what is ingested: no nutrition (hydration and nutrition logs have no
+    # downstream series) and no email (nothing reads it; openid gives the subject).
     google_default_scope: str = (
-        "openid email "
+        "openid "
         "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly "
         "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly "
-        "https://www.googleapis.com/auth/googlehealth.nutrition.readonly "
         "https://www.googleapis.com/auth/googlehealth.sleep.readonly "
         "https://www.googleapis.com/auth/googlehealth.settings.readonly"
     )
