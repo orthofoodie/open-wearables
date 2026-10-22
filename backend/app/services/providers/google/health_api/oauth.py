@@ -31,8 +31,6 @@ class GoogleOAuth(BaseOAuthTemplate):
     use_pkce: bool = False
     auth_method: AuthenticationMethod = AuthenticationMethod.BODY
 
-    USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
-
     @property
     def endpoints(self) -> ProviderEndpoints:
         """OAuth endpoints for authorization and token exchange."""
@@ -55,9 +53,13 @@ class GoogleOAuth(BaseOAuthTemplate):
         """Build Google's authorization URL.
 
         Adds the Google-specific parameters the base template doesn't emit:
-        ``access_type=offline`` (return a refresh token), ``prompt=consent``
-        (always return one), and ``include_granted_scopes=true`` (incremental
-        authorization).
+        ``access_type=offline`` (return a refresh token) and ``prompt=consent``
+        (always return one).
+
+        No ``include_granted_scopes``: it merges every scope the user ever
+        granted this client into the token, and the Health API rejects a token
+        carrying one it disallows (403 DISALLOWED_OAUTH_SCOPES, e.g.
+        ``people_user_gender_read``), so a completed connection read nothing.
         """
         params = {
             "response_type": "code",
@@ -66,23 +68,22 @@ class GoogleOAuth(BaseOAuthTemplate):
             "state": state,
             "scope": self.credentials.default_scope,
             "access_type": "offline",
-            "include_granted_scopes": "true",
             "prompt": "consent",
         }
         return f"{self.endpoints.authorize_url}?{urlencode(params)}", None
 
     def _get_provider_user_info(self, token_response: OAuthTokenResponse, user_id: str) -> dict[str, str | None]:
-        """Resolve the Google Health API user id (healthUserId) and email.
+        """Resolve the Google Health API user id (healthUserId).
 
         ``healthUserId`` is the stable id Google puts in webhook notifications, so we
         store it as the connection's ``provider_user_id`` to map inbound pings back to
-        this user. Email (OIDC userinfo) is best-effort, for display only. Both calls
-        are best-effort so a scope/permission gap never fails the whole connection.
+        this user. Best-effort, so a scope/permission gap never fails the whole
+        connection. No email: the scope is not requested (nothing reads it).
         """
         headers = {"Authorization": f"Bearer {token_response.access_token}"}
         return {
             "user_id": self._fetch(f"{self.api_base_url}{IDENTITY_ENDPOINT}", headers, "healthUserId", user_id),
-            "username": self._fetch(self.USERINFO_URL, headers, "email", user_id),
+            "username": None,
         }
 
     def _fetch(self, url: str, headers: dict[str, str], field: str, user_id: str) -> str | None:
