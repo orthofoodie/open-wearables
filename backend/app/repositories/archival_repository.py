@@ -60,7 +60,11 @@ class DataPointSeriesArchiveRepository:
     """Handles aggregation, insertion, and deletion for the archive table."""
 
     def get_storage_estimate(self, db: DbSession) -> dict:
-        """Get storage sizes for ALL user tables from pg_catalog.
+        """Get storage sizes for every user table in Open Wearables' schema.
+
+        Only the current schema (DB_SCHEMA): in a database Open Wearables shares,
+        every other schema's tables are someone else's, and would otherwise be
+        summed into `other_tables_bytes` - their names and sizes included.
 
         Returns live / archive / other breakdowns so the frontend can visualise
         growth projections accurately.  Also queries the actual date span of
@@ -75,6 +79,7 @@ class DataPointSeriesArchiveRepository:
                     pg_total_relation_size(relid) AS total_bytes,
                     n_live_tup AS row_count
                 FROM pg_catalog.pg_stat_user_tables
+                WHERE schemaname = current_schema()
             """)
         ).fetchall()
 

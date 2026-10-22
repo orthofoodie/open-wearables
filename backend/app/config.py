@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import warnings
 from datetime import timedelta
 from functools import lru_cache
@@ -30,6 +31,11 @@ class Settings(BaseSettings):
         extra="ignore",
         # default env_file solution search .env every time BaseSettings is instantiated
         # dotenv search .env when module is imported, without usecwd it starts from the file it was called
+        # A validation error must not print the settings. Without this, pydantic puts
+        # every value it read from the environment and config/.env into the error's
+        # input_value: a boot missing SECRET_KEY would write db_password,
+        # admin_password and every provider client secret to the container log.
+        hide_input_in_errors=True,
     )
 
     # CORE SETTINGS
@@ -58,6 +64,15 @@ class Settings(BaseSettings):
     db_name: str = "open-wearables"
     db_user: str = "open-wearables"
     db_password: SecretStr = SecretStr("open-wearables")
+    # The schema Open Wearables' tables live in. `public` is upstream's behaviour,
+    # unchanged. Any other value runs every connection with that search_path and
+    # keeps alembic's version table there, so Open Wearables can live inside a
+    # database it does not own - with a role that owns this schema and holds
+    # nothing else (docs/deployment/shared-database.mdx).
+    db_schema: str = "public"
+    # Per process: the API, each Celery worker, beat and flower each hold a pool.
+    db_pool_size: int = Field(default=20, ge=1)
+    db_max_overflow: int = Field(default=30, ge=0)
 
     # Sentry
     SENTRY_ENABLED: bool = False
@@ -216,11 +231,12 @@ class Settings(BaseSettings):
     # GOOGLE OAUTH SETTINGS
     google_client_id: str | None = None
     google_client_secret: SecretStr | None = None
+    # Only what is ingested: no nutrition (hydration and nutrition logs have no
+    # downstream series) and no email (nothing reads it; openid gives the subject).
     google_default_scope: str = (
-        "openid email "
+        "openid "
         "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly "
         "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly "
-        "https://www.googleapis.com/auth/googlehealth.nutrition.readonly "
         "https://www.googleapis.com/auth/googlehealth.sleep.readonly "
         "https://www.googleapis.com/auth/googlehealth.settings.readonly"
     )
@@ -243,6 +259,13 @@ class Settings(BaseSettings):
     withings_client_secret: SecretStr | None = None
     withings_webhook_token: SecretStr | None = None
     withings_default_scope: str = "user.info,user.metrics,user.activity"
+    # Where the Withings data API and its OAuth token endpoint live. The defaults
+    # are the production hosts, so an unset environment behaves exactly as before;
+    # a test rig points them at a stub. Two settings rather than one because the
+    # token endpoint carries the client secret, and redirecting data calls must
+    # never silently redirect credentials with them.
+    withings_api_base_url: str = "https://wbsapi.withings.net"
+    withings_oauth_base_url: str = "https://wbsapi.withings.net"
 
     # EMAIL SETTINGS (Resend)
     resend_api_key: SecretStr | None = None
@@ -441,13 +464,29 @@ class Settings(BaseSettings):
             return v.get_decrypted_value(validation_info.data["fernet_decryptor"])
         return v
 
+    @field_validator("db_schema", mode="after")
+    @classmethod
+    def _db_schema_is_an_identifier(cls, v: str) -> str:
+        # It is interpolated into a libpq option and a CREATE SCHEMA, so only a
+        # plain lowercase identifier is accepted.
+        if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", v):
+            raise ValueError("DB_SCHEMA must be a lowercase PostgreSQL identifier")
+        return v
+
+    @property
+    def db_connect_args(self) -> dict[str, str]:
+        """libpq options for every connection: the schema, unless it is `public`."""
+        if self.db_schema == "public":
+            return {}
+        return {"options": f"-c search_path={self.db_schema}"}
+
     @property
     def db_uri(self) -> str:
-        return (
-            f"postgresql+psycopg://"
-            f"{self.db_user}:{self.db_password.get_secret_value()}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
-        )
+        # The user and password are percent-encoded: a secret may hold `@ / : % #`,
+        # each of which ends or bends a URL. A value with none of them is unchanged.
+        user = quote(self.db_user, safe="")
+        password = quote(self.db_password.get_secret_value(), safe="")
+        return f"postgresql+psycopg://{user}:{password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # 0. pytest ini_options
     # 1. environment variables
