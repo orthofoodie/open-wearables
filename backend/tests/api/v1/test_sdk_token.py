@@ -1,10 +1,13 @@
 """Tests for SDK token exchange endpoint."""
 
+from uuid import uuid4
+
 from jose import jwt
 from sqlalchemy.orm import Session
 from starlette.testclient import TestClient
 
 from app.config import settings
+from app.services import refresh_token_service
 from tests.factories import ApplicationFactory, DeveloperFactory, UserFactory
 
 
@@ -99,3 +102,47 @@ class TestCreateUserToken:
             json={},
         )
         assert response.status_code in [400, 422]
+
+
+class TestRevokeUserSdkTokens:
+    """Tests for POST /api/v1/users/{user_id}/sdk-tokens/revoke (orthofoodie server#318).
+
+    SDK refresh tokens never expire and rotate on every use, so the integrating
+    server cannot hold the current one; this ends a user's SDK sessions by user id.
+    """
+
+    def _refreshes(self, client: TestClient, api_v1_prefix: str, token: str) -> int:
+        return client.post(f"{api_v1_prefix}/token/refresh", json={"refresh_token": token}).status_code
+
+    def test_revokes_every_sdk_token_of_the_user_and_no_one_else(
+        self, client: TestClient, db: Session, api_v1_prefix: str, api_key_header: dict[str, str]
+    ) -> None:
+        user_a, user_b = UserFactory(), UserFactory()
+        a_tokens = [refresh_token_service.create_sdk_refresh_token(db, user_a.id, "app") for _ in range(2)]
+        b_token = refresh_token_service.create_sdk_refresh_token(db, user_b.id, "app")
+
+        response = client.post(f"{api_v1_prefix}/users/{user_a.id}/sdk-tokens/revoke", headers=api_key_header)
+
+        assert response.status_code == 200
+        assert response.json() == {"revoked": 2}
+        assert [self._refreshes(client, api_v1_prefix, t) for t in a_tokens] == [401, 401]
+        # The control: another user's token still refreshes.
+        assert self._refreshes(client, api_v1_prefix, b_token) == 200
+
+    def test_refused_without_the_api_key(self, client: TestClient, db: Session, api_v1_prefix: str) -> None:
+        user = UserFactory()
+        token = refresh_token_service.create_sdk_refresh_token(db, user.id, "app")
+
+        response = client.post(f"{api_v1_prefix}/users/{user.id}/sdk-tokens/revoke")
+
+        assert response.status_code == 401
+        assert self._refreshes(client, api_v1_prefix, token) == 200
+
+    def test_an_unknown_user_revokes_nothing_and_is_not_a_404(
+        self, client: TestClient, api_v1_prefix: str, api_key_header: dict[str, str]
+    ) -> None:
+        """200 with 0, so a caller can read a 404 as "this route is missing"."""
+        response = client.post(f"{api_v1_prefix}/users/{uuid4()}/sdk-tokens/revoke", headers=api_key_header)
+
+        assert response.status_code == 200
+        assert response.json() == {"revoked": 0}
