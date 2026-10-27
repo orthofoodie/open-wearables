@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException, status
 from app.config import settings
 from app.database import DbSession
 from app.schemas.auth import SDKTokenRequest, TokenResponse
-from app.services import application_service, create_sdk_user_token, refresh_token_service
+from app.services import ApiKeyDep, application_service, create_sdk_user_token, refresh_token_service
 from app.utils.auth import DeveloperOptionalDep
 
 router = APIRouter()
@@ -76,3 +76,18 @@ def create_user_token(
         refresh_token=refresh_token,
         expires_in=settings.access_token_expire_minutes * 60,
     )
+
+
+@router.post("/users/{user_id}/sdk-tokens/revoke")
+def revoke_user_sdk_tokens(user_id: UUID, db: DbSession, _api_key: ApiKeyDep) -> dict[str, int]:
+    """Revoke every SDK refresh token of a user.
+
+    SDK refresh tokens never expire and rotate on every refresh, so the integrating
+    server cannot hold the current one to revoke it; this ends a user's SDK sessions
+    by user id (orthofoodie server#318). Their access tokens run out within
+    `access_token_expire_minutes`.
+
+    Returns 200 `{"revoked": n}`, 0 for an unknown user, so a 404 can only mean this
+    route is missing. Behind the API key, like the rest of the user routes.
+    """
+    return {"revoked": refresh_token_service.revoke_all_for_user(db, user_id)}
