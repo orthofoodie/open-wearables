@@ -160,5 +160,12 @@ class RefreshTokenService:
         self.logger.debug(f"Revoked refresh token {refresh_token_str[:10]}...")
         return True
 
+    def revoke_all_for_user(self, db_session: DbSession, user_id: UUID) -> int:
+        """Revoke every refresh token of a user (SDK tokens: only those carry a user id).
+
+        Returns the count revoked, 0 for an unknown user.
+        """
+        return self.repo.revoke_all_for_user(db_session, user_id)
+
 
 refresh_token_service = RefreshTokenService(log=getLogger(__name__))
