@@ -6,7 +6,8 @@ FROM python:3.13-slim AS builder
     rm -rf /var/lib/apt/lists/*
     RUN pip install --no-cache-dir --upgrade pyopenssl
 
-    COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+    # uv pinned by digest (orthofoodie infra#46); bump both copies together.
+    COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /bin/
 
     WORKDIR /root_project
 
@@ -31,7 +32,7 @@ FROM python:3.13-slim
 
     WORKDIR /root_project
 
-    COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+    COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /bin/
 
     COPY --from=builder /opt/venv /opt/venv
     COPY --from=builder /root_project /root_project
