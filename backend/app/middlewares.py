@@ -1,8 +1,9 @@
 import contextlib
 import logging
+import re
 import time
 import traceback
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
@@ -56,10 +57,20 @@ def add_cors_middleware(app: FastAPI) -> None:
     )
 
 
-#: The phone SDK's upload routes: public on the load balancer, which has no body
-#: limit, and FastAPI parses a JSON body before the auth dependency runs
-#: (orthofoodie/orthofoodie-infra#40).
-_SDK_PATH_PREFIX = "/api/v1/sdk/"
+#: A token refresh is one token, and an OAuth callback carries its data in the query.
+_SMALL_BODY_BYTES = 8 * 1024
+
+
+def public_body_limits(raw_payload_max: int) -> list[tuple[re.Pattern[str], int]]:
+    """The paths public on our load balancer, which has no body limit, each with the
+    most its body may hold: FastAPI parses a JSON body before the auth dependency
+    runs (orthofoodie/orthofoodie-infra#40, #45)."""
+    return [
+        (re.compile(r"^/api/v1/sdk/"), raw_payload_max),
+        (re.compile(r"^/api/v1/providers/[^/]+/webhooks(/|$)"), raw_payload_max),
+        (re.compile(r"^/api/v1/token/refresh/?$"), _SMALL_BODY_BYTES),
+        (re.compile(r"^/api/v1/oauth/[^/]+/callback/?$"), _SMALL_BODY_BYTES),
+    ]
 
 
 class _BodyTooLarge(HTTPException):
@@ -67,8 +78,8 @@ class _BodyTooLarge(HTTPException):
         super().__init__(status_code=413, detail="Request body too large")
 
 
-class SdkBodySizeLimit:
-    """413 for an SDK upload over ``max_bytes``, before the body is parsed.
+class PublicBodySizeLimit:
+    """413 for a body over its path's bound (``limits``), before it is parsed.
 
     By its Content-Length before a byte is read; a chunked body, or one longer
     than it says, as soon as the bytes read pass the cap. Raised as an
@@ -76,16 +87,19 @@ class SdkBodySizeLimit:
     its own 400) and the app's handler answers it.
     """
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    def __init__(self, app: ASGIApp, limits: Sequence[tuple[re.Pattern[str], int]]) -> None:
         self.app = app
-        self.max_bytes = max_bytes
+        self.limits = limits
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith(_SDK_PATH_PREFIX):
+        max_bytes = None
+        if scope["type"] == "http":
+            max_bytes = next((bound for pattern, bound in self.limits if pattern.match(scope["path"])), None)
+        if max_bytes is None:
             await self.app(scope, receive, send)
             return
         length = Headers(scope=scope).get("content-length", "")
-        if length.isdigit() and int(length) > self.max_bytes:
+        if length.isdigit() and int(length) > max_bytes:
             await self._refuse(send)
             return
 
@@ -97,7 +111,7 @@ class SdkBodySizeLimit:
             message = await receive()
             if message["type"] == "http.request":
                 read += len(message.get("body", b""))
-                if read > self.max_bytes:
+                if read > max_bytes:
                     raise _BodyTooLarge
             return message
 
@@ -119,8 +133,8 @@ class SdkBodySizeLimit:
         await send({"type": "http.response.body", "body": b'{"detail":"Request body too large"}'})
 
 
-def add_sdk_body_limit_middleware(app: FastAPI) -> None:
-    app.add_middleware(SdkBodySizeLimit, max_bytes=settings.raw_payload_max_size_bytes)
+def add_public_body_limit_middleware(app: FastAPI) -> None:
+    app.add_middleware(PublicBodySizeLimit, limits=public_body_limits(settings.raw_payload_max_size_bytes))
 
 
 class _RateWindow:
